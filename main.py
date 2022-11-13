@@ -1,57 +1,65 @@
-#  Copyright (c) ChernV (@otter18), 2021.
+def check_message(chat_id, message):
+    if message.lower() in ['привет', 'hello']:
+        send_message(chat_id, 'Привет :)')
+    elif message.lower() in 'фото по url':
+        # Отправить URL-адрес картинки (телеграм скачает его и отправит)
+        send_photo_url(chat_id, 'https://ramziv.com/static/assets/img/home-bg.jpg')
+    elif message.lower() in 'фото с компьютера':
+        # Отправить файл с компьютера
+        send_photo_file(chat_id, 'photo.jpg')
+    elif message.lower() in 'фото с сервера телеграм':
+        # Отправить id файла (файл уже хранится где-то на серверах Telegram) 
+        send_photo_file_id(chat_id, 'AgACAgIAAxkBAAMqYVGBbdbivL53IzKLfUKUClBnB0cAApy0MRtfMZBKHL0tNw9aITwBAAMCAAN4AAMhBA')
+Полный код
 
-import os
-import random
+import requests
+import time
 
-from setup import bot, logger
-from webhook import app
+TOKEN = 'токен'
+URL = 'https://api.telegram.org/bot'
 
-# --------------- dialog params -------------------
-dialog = {
-    'hello': {
-        'in': ['привет', 'hello', 'hi', 'privet', 'hey'],
-        'out': ['Приветствую', 'Здравствуйте', 'Привет!']
-    },
-    'how r u': {
-        'in': ['как дела', 'как ты', 'how are you', 'дела', 'how is it going'],
-        'out': ['Хорошо', 'Отлично', 'Good. And how are u?']
-    },
-    'name': {
-        'in': ['зовут', 'name', 'имя'],
-        'out': [
-            'Я telegram-template-bot',
-            'Я бот шаблон, но ты можешь звать меня в свой проект',
-            'Это секрет. Используй команду /help, чтобы узнать'
-        ]
-    }
-}
+def get_updates(offset=0):
+    result = requests.get(f'{URL}{TOKEN}/getUpdates?offset={offset}').json()
+    return result['result']
+
+def send_message(chat_id, text):
+    requests.get(f'{URL}{TOKEN}/sendMessage?chat_id={chat_id}&text={text}')
+
+def send_photo_url(chat_id, img_url):
+    requests.get(f'{URL}{TOKEN}/sendPhoto?chat_id={chat_id}&photo={img_url}')
+
+def send_photo_file(chat_id, img):
+    files = {'photo': open(img, 'rb')}
+    requests.post(f'{URL}{TOKEN}/sendPhoto?chat_id={chat_id}', files=files)
+
+def send_photo_file_id(chat_id, file_id):
+    requests.get(f'{URL}{TOKEN}/sendPhoto?chat_id={chat_id}&photo={file_id}')
+
+def check_message(chat_id, message):
+    if message.lower() in ['привет', 'hello']:
+        send_message(chat_id, 'Привет :)')
+    elif message.lower() in 'фото по url':
+        # Отправить URL-адрес картинки (телеграм скачает его и отправит)
+        send_photo_url(chat_id, 'https://ramziv.com/static/assets/img/home-bg.jpg')
+    elif message.lower() in 'фото с компьютера':
+        # Отправить файл с компьютера
+        send_photo_file(chat_id, 'photo.jpg')
+    elif message.lower() in 'фото с сервера телеграм':
+        # Отправить id файла (файл уже хранится где-то на серверах Telegram) 
+        send_photo_file_id(chat_id, 'AgACAgIAAxkBAAMqYVGBbdbivL53IzKLfUKUClBnB0cAApy0MRtfMZBKHL0tNw9aITwBAAMCAAN4AAMhBA')
 
 
-# --------------- bot -------------------
-@bot.message_handler(commands=['help', 'start'])
-def say_welcome(message):
-    logger.info(f'</code>@{message.from_user.username}<code> ({message.chat.id}) used /start or /help')
-    bot.send_message(
-        message.chat.id,
-        '<b>Hello! This is a telegram bot template written by <a href="https://github.com/otter18">otter18</a></b>',
-        parse_mode='html'
-    )
-
-
-@bot.message_handler(func=lambda message: True)
-def echo(message):
-    for t, resp in dialog.items():
-        if sum([e in message.text.lower() for e in resp['in']]):
-            logger.info(f'</code>@{message.from_user.username}<code> ({message.chat.id}) used {t}:\n\n%s', message.text)
-            bot.send_message(message.chat.id, random.choice(resp['out']))
-            return
-
-    logger.info(f'</code>@{message.from_user.username}<code> ({message.chat.id}) used echo:\n\n%s', message.text)
-    bot.send_message(message.chat.id, message.text)
-
+def run():
+    update_id = get_updates()[-1]['update_id'] # Присваиваем ID последнего отправленного сообщения боту
+    while True:
+        time.sleep(2)
+        messages = get_updates(update_id) # Получаем обновления
+        for message in messages:
+            # Если в обновлении есть ID больше чем ID последнего сообщения, значит пришло новое сообщение
+            if update_id < message['update_id']:
+                update_id = message['update_id'] # Присваиваем ID последнего отправленного сообщения боту
+                # Отвечаем тому кто прислал сообщение боту
+                check_message(message['message']['chat']['id'], message['message']['text'])
 
 if __name__ == '__main__':
-    if os.environ.get("IS_PRODUCTION", "False") == "True":
-        app.run()
-    else:
-        bot.infinity_polling()
+    run()
